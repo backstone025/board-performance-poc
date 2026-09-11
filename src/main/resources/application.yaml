@@ -1,6 +1,10 @@
 spring:
   application:
     name: simple-board
+  datasource:
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
+      connection-timeout: 30000
 management:
   endpoints:
     web:
@@ -8,4 +12,4 @@ management:
         include: heath, info, prometheus
   metrics:
     tags:
-      application: ${spring.application.name:simple-board-app}
+      application: ${spring.application.name}
