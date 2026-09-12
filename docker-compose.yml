@@ -49,6 +49,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 2048M
 
 volumes:
   mysql-data:
