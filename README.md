@@ -7,10 +7,10 @@
 
 ### 1. 서버 성능 개선 기초 `(2026.09.05 ~ )`
 - [X] k6 부하 테스트 환경 구축 및 기본 베이스라인 측정
-- [ ] Scale-up / Scale-out에 따른 병목 지점 및 확장 검증
+- [X] Scale-up / Scale-out에 따른 병목 지점 및 확장 검증
 - [X] DB 커넥션 풀(HikariCP) 최적화
 - [ ] 서버 캐시(Caffeine/Redis) 도입
-- [ ] 정적 자원 및 캐시/CDN 적용
+- [ ] ~~정적 자원 및 캐시/CDN 적용~~
 - [ ] 대기 처리 및 지연 시간 감소 실험
 
 ## Tech Stack & Tools
