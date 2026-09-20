@@ -6,6 +6,9 @@ import com.backstone.simple_board.domain.document.dto.response.*;
 import com.backstone.simple_board.domain.document.entity.Document;
 import com.backstone.simple_board.domain.document.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -27,19 +30,36 @@ public class DocumentService {
     }
 
     // Read
+
+    /**
+     * 단건 상세 조회
+     * - Cache Name : "docDetail"
+     * - Cache Key : doc ID
+     */
+    @Cacheable(value = "docDetail", key = "#id")
     public GetDocByIdResponse getDocById(Long id) {
         Document doc = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문서입니다. id=" + id));
         return GetDocByIdResponse.from(doc);
     }
 
+    /**
+     * 목록 페이징 조회
+     * - Cache Name: "docPage"
+     * - Cache Key: pageNumber
+     */
+    @Cacheable(value = "docPage", key = "#pageNumber")
     public GetDocsResponse getDocs(Integer pageNumber) {
         Page<Document> documentPage = documentRepository.findAll(PageRequest.of(pageNumber, DEFAULT_PAGE_SIZE));
         return GetDocsResponse.of(documentPage);
     }
 
     // Update
+    /**
+     * 수정 시 해당 단건 상세 조회 캐시 파기
+     */
     @Transactional
+    @CacheEvict(value = "docDetail", key = "#id")
     public UpdateDocResponse updateDoc(Long id, UpdateDocRequest updateDocRequest) {
         Document doc = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문서입니다. id=" + id));
@@ -48,7 +68,11 @@ public class DocumentService {
     }
 
     // Delete
+    /**
+     * 삭제 시 해당 단건 상세 조회 캐시 파기
+     */
     @Transactional
+    @CacheEvict(value = "docDetail", key = "#id")
     public DeleteDocResponse deleteDoc(Long id) {
         documentRepository.deleteById(id);
         return new DeleteDocResponse(true, id);
