@@ -36,6 +36,26 @@ export const options = {
 
 const BASE_URL = 'http://localhost:8080/api/docs';
 const TOTAL_DOCS = 100000; // 사전 적재된 더미 데이터 수
+const PAGE_SIZE = 20;
+const MAX_PAGES = TOTAL_DOCS / PAGE_SIZE;
+
+/**
+ * 파레토 법칙(80:20)을 모사하기 위한 Zipfian 난수 생성기
+ * @param max 최대 범주(MAX_PAGES, TOTAL_DOCS)
+ * @param alpha 쏠림 정도(0.8 -> 상위 20%에 80% 쏠림)
+ * @returns {number} Zipfian 난수
+ */
+function getZipfianRank(max, alpha = 0.8){
+    // 80% 확률로 상위 20% (Hotspot) 선택
+    if (Math.random() < alpha) {
+        return Math.floor(Math.random() * (max * (1 - alpha))); // 0 ~ 20% 구간
+    }
+    // 나머지 20% 확률로 나머지 80% (Cold) 선택
+    else {
+        const coldStart = Math.floor(max * (1 - alpha));
+        return coldStart + Math.floor(Math.random() * (max * alpha)); // 20% ~ 100% 구간
+    }
+}
 
 export default function () {
     // 1 ~ 100 사이의 난수를 발생시켜 요청 비율 분기
@@ -44,13 +64,13 @@ export default function () {
 
     if (rand < 70) {
         // 1. 목록 페이징 조회 (70%) - 0 ~ 5000 페이지 임의 조회
-        const page = Math.floor(Math.random() * 5000);
+        const page = getZipfianRank(MAX_PAGES)
         res = http.get(`${BASE_URL}?page=${page}`);
         check(res, { 'get_docs status is 200': (r) => r.status === 200 });
 
     } else if (rand < 90) {
         // 2. 단건 상세 조회 (20%) - 1 ~ 10만번 ID 임의 조회
-        const id = Math.floor(Math.random() * TOTAL_DOCS) + 1;
+        const id = getZipfianRank(TOTAL_DOCS) + 1;
         res = http.get(`${BASE_URL}/${id}`);
         check(res, { 'get_doc_by_id status is 200': (r) => r.status === 200 });
 
@@ -66,7 +86,7 @@ export default function () {
 
     } else if (rand < 98) {
         // 4. 게시글 수정 (3%)
-        const id = Math.floor(Math.random() * TOTAL_DOCS) + 1;
+        const id = getZipfianRank(TOTAL_DOCS) + 1;
         const payload = JSON.stringify({
             title: `Updated Title ${Date.now()}`,
             content: 'Updated performance test content...',
@@ -77,7 +97,7 @@ export default function () {
 
     } else {
         // 5. 게시글 삭제 (2%)
-        const id = Math.floor(Math.random() * TOTAL_DOCS) + 1;
+        const id = getZipfianRank(TOTAL_DOCS) + 1;
         res = http.del(`${BASE_URL}/${id}`);
         check(res, { 'delete_doc status is 200': (r) => r.status === 200 });
     }
