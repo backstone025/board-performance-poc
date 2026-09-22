@@ -2,16 +2,11 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate } from 'k6/metrics';
 
-// 에러율 측정을 위한 커스텀 메트릭
 export const errorRate = new Rate('errors');
 
-// 부하 단계(Ramp-up) 및 목표 지표 설정
 export const options = {
     stages: [
-        // 1. Smoke Test (VU 1 ~ 5)
         { duration: '30s', target: 5 },
-
-        // 2. Load Test (VU 10 -> 50 -> 100 -> 150)
         { duration: '1m', target: 10 },
         { duration: '3m', target: 10 },
         { duration: '1m', target: 50 },
@@ -20,59 +15,77 @@ export const options = {
         { duration: '3m', target: 100 },
         { duration: '1m', target: 150 },
         { duration: '3m', target: 150 },
-
-        // 3. Stress Test (VU 200 이상)
         { duration: '1m', target: 200 },
         { duration: '3m', target: 200 },
-
-        // 종료 (Ramp-down)
         { duration: '30s', target: 0 },
     ],
     thresholds: {
-        http_req_duration: ['p(95)<200', 'p(99)<500'], // p95 < 200ms, p99 < 500ms
-        errors: ['rate<0.01'],                          // 에러율 < 1%
+        http_req_duration: ['p(95)<200', 'p(99)<500'],
+        errors: ['rate<0.01'],
     },
 };
 
 const BASE_URL = 'http://localhost:8080/api/docs';
-const TOTAL_DOCS = 100000; // 사전 적재된 더미 데이터 수
+const TOTAL_DOCS = 100000;
 const PAGE_SIZE = 20;
-const MAX_PAGES = TOTAL_DOCS / PAGE_SIZE;
+const MAX_PAGES = TOTAL_DOCS / PAGE_SIZE; // 5000
+
+const TARGET_HIT_RATE = __ENV.HIT_RATE ? parseFloat(__ENV.HIT_RATE) : 1.0;
+
+function getZipfianRank(max, alpha = 0.8) {
+    if (Math.random() < alpha) {
+        return Math.floor(Math.random() * (max * (1 - alpha))); // 상위 20% (Hotspot)
+    } else {
+        const coldStart = Math.floor(max * (1 - alpha));
+        return coldStart + Math.floor(Math.random() * (max * alpha)); // 하위 80% (Cold)
+    }
+}
 
 /**
- * 파레토 법칙(80:20)을 모사하기 위한 Zipfian 난수 생성기
- * @param max 최대 범주(MAX_PAGES, TOTAL_DOCS)
- * @param alpha 쏠림 정도(0.8 -> 상위 20%에 80% 쏠림)
- * @returns {number} Zipfian 난수
+ * 적중률 제어를 위한 페이지 번호 생성
  */
-function getZipfianRank(max, alpha = 0.8){
-    // 80% 확률로 상위 20% (Hotspot) 선택
-    if (Math.random() < alpha) {
-        return Math.floor(Math.random() * (max * (1 - alpha))); // 0 ~ 20% 구간
+function getPageNumberByHitRate() {
+    const hotspotPages = Math.floor(MAX_PAGES * 0.2); // 상위 20% 페이지 (1000)
+
+    if (Math.random() < TARGET_HIT_RATE) {
+        // Hotspot 영역 요청 (0 ~ 999 페이지) -> 반복 요청으로 Cache HIT 유발
+        return getZipfianRank(hotspotPages);
+    } else {
+        // Cold 영역 요청 (1000 ~ 4999 페이지) -> 매번 랜덤 요청으로 Cache MISS 유발
+        return hotspotPages + Math.floor(Math.random() * (MAX_PAGES - hotspotPages));
     }
-    // 나머지 20% 확률로 나머지 80% (Cold) 선택
-    else {
-        const coldStart = Math.floor(max * (1 - alpha));
-        return coldStart + Math.floor(Math.random() * (max * alpha)); // 20% ~ 100% 구간
+}
+
+/**
+ * 적중률 제어를 위한 단건 ID 생성 (실제 존재하는 ID 범위 내 지정)
+ */
+function getDocIdByHitRate() {
+    const hotspotDocs = Math.floor(TOTAL_DOCS * 0.2); // 상위 20% 문서 (20000)
+
+    if (Math.random() < TARGET_HIT_RATE) {
+        // Hotspot 영역 ID (1 ~ 20000) -> 반복 요청으로 Cache HIT 유발
+        return getZipfianRank(hotspotDocs) + 1;
+    } else {
+        // DB에 존재하는 Cold 영역 ID (20001 ~ 100000) -> Cache MISS 및 200 OK 보장
+        return (hotspotDocs + 1) + Math.floor(Math.random() * (TOTAL_DOCS - hotspotDocs));
     }
 }
 
 export default function () {
-    // 1 ~ 100 사이의 난수를 발생시켜 요청 비율 분기
     const rand = Math.random() * 100;
     let res;
 
     if (rand < 70) {
-        // 1. 목록 페이징 조회 (70%) - 0 ~ 5000 페이지 임의 조회
-        const page = getZipfianRank(MAX_PAGES)
+        // 1. 목록 페이징 조회 (70%)
+        const page = getPageNumberByHitRate();
         res = http.get(`${BASE_URL}?page=${page}`);
         check(res, { 'get_docs status is 200': (r) => r.status === 200 });
 
     } else if (rand < 90) {
-        // 2. 단건 상세 조회 (20%) - 1 ~ 10만번 ID 임의 조회
-        const id = getZipfianRank(TOTAL_DOCS) + 1;
+        // 2. 단건 상세 조회 (20%)
+        const id = getDocIdByHitRate();
         res = http.get(`${BASE_URL}/${id}`);
-        check(res, { 'get_doc_by_id status is 200': (r) => r.status === 200 });
+        check(res, { 'get_doc status is 200': (r) => r.status === 200 });
 
     } else if (rand < 95) {
         // 3. 게시글 생성 (5%)
@@ -102,9 +115,8 @@ export default function () {
         check(res, { 'delete_doc status is 200': (r) => r.status === 200 });
     }
 
-    // 요청 결과가 200이 아니면 에러로 처리
+    // HTTP 200 응답이 아닐 경우만 에러로 집계
     errorRate.add(res.status !== 200);
 
-    // 사용자 행동 간격 (0.1초 대기)
     sleep(0.1);
 }
