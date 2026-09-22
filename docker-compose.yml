@@ -63,7 +63,10 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: "false" # 성능 측정을 위해 콘솔 SQL 로그 OFF
+      SPRING_CACHE_REDIS_ENABLE_STATISTICS: "true"  # Redis 캐시 Hit/Miss 통계 활성화
+      MANAGEMENT_METRICS_ENABLE_CACHE: "true"       # Actuator 캐시 메트릭 노출
       JAVA_OPTS: "-Xms512m -Xmx512m" # JVM Heap 사이즈 고정 (변수 통제)
+      APP_CACHE_TARGET_HIT_RATE: "1.0" # k6의 HIT_RATE와 동일
     depends_on:
       db:
         condition: service_healthy
@@ -87,7 +90,10 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: "false" # 성능 측정을 위해 콘솔 SQL 로그 OFF
+      SPRING_CACHE_REDIS_ENABLE_STATISTICS: "true"  # Redis 캐시 Hit/Miss 통계 활성화
+      MANAGEMENT_METRICS_ENABLE_CACHE: "true"       # Actuator 캐시 메트릭 노출
       JAVA_OPTS: "-Xms512m -Xmx512m" # JVM Heap 사이즈 고정 (변수 통제)
+      APP_CACHE_TARGET_HIT_RATE: "1.0" # k6의 HIT_RATE와 동일
     depends_on:
       db:
         condition: service_healthy
