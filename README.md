@@ -5,7 +5,7 @@
 
 ---
 
-## 📌 주요 실험 로드맵 및 진행 상황
+## 주요 실험 로드맵 및 진행 상황
 
 ### 1. 기본 서버 성능 최적화 Sprint (`2026.09.05 ~ 진행 중`)
 - [x] **k6 부하 테스트 환경 구축:** 베이스라인(No-Cache) 측정 및 DB CPU/Connection I/O 병목 확인
@@ -18,7 +18,7 @@
 
 ---
 
-## 🛠 Tech Stack & Tools
+## Tech Stack & Tools
 
 - **Application:** Java 21, Spring Boot 3.x, Spring Data JPA, Micrometer (Actuator)
 - **Database Layer:** MySQL 8.0, HikariCP
