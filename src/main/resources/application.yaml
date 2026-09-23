@@ -5,11 +5,18 @@ spring:
     hikari:
       maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
       connection-timeout: 30000
+  cache:
+    type: redis
+    redis:
+      enable-statistics: true
+
 management:
   endpoints:
     web:
       exposure:
-        include: heath, info, prometheus
+        include: health, info, prometheus, metrics
   metrics:
     tags:
       application: ${spring.application.name}
+    enable:
+      cache: true
