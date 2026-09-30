@@ -14,7 +14,7 @@
 - [x] **DB Bottleneck Offloading (Test C1):** Local(Caffeine) vs Remote(Redis) Cache 비교 (TPS 5.4배 폭증, p95 24ms 달성)
 - [x] **Cache Hit Rate 변동성 검증 (Test C2):** 적중률 단계별 DB 부하 감축 추적 및 목표 성능(`p95 < 200ms`) 달성 임계 적중률(80%) 도출
 - [x] **유한 메모리 시나리오 & Eviction Policy 검증 (Test C3):** 16MB 제한 조건 하 Pareto(80:20) 트래픽 대상 삭제 정책(LRU vs LFU vs Random) 비교 (LRU 최적 검증)
-- [ ] **응답 데이터 압축 & GC/메모리 관측 (진행 예정):** HTTP 응답 압축 적용에 따른 Network Payload 감축 및 JVM Heap/GC 영향 분석
+- [x] 응답 데이터 압축 (Gzip) & Nginx 연산 오버헤드 분석 : Nginx 계층의 응답 데이터 압축 적용을 통한 네트워크 페이로드 감축 및 데이터 유형별 압축 효율성 검증
 
 ---
 
