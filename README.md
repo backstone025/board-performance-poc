@@ -17,7 +17,7 @@
 - [x] 응답 데이터 압축 (Gzip) & Nginx 연산 오버헤드 분석 : Nginx 계층의 응답 데이터 압축 적용을 통한 네트워크 페이로드 감축 및 데이터 유형별 압축 효율성 검증
 
 ### 2. DB 설계 및 쿼리 최적화 Sprint (`2026.10.11 ~ 2026.11.08`)
-- [ ] **B-Tree 인덱스 구조 및 Scan 범위 최적화:** 단일 인덱스 vs 복합 인덱스(Composite Index) vs 커버링 인덱스(Covering Index) 대조 분석을 통한 Table Access(Random I/O) 제거 및 Query Execution Time 단축
+- [X] **B-Tree 인덱스 구조 및 Scan 범위 최적화:** 단일 인덱스 vs 복합 인덱스(Composite Index) vs 커버링 인덱스(Covering Index) 대조 분석을 통한 Table Access(Random I/O) 제거 및 Query Execution Time 단축
 - [ ] **대용량 데이터 페이징 성능 개선:** Offset 기반 페이징의 깊은 페이지(Deep Page) I/O 병목 분석 및 ID 기반 No-Offset(Key-Set) 페이징 전환을 통한 Latency 최적화
 - [ ] **인덱스 이탈(Index Invalidation) & 옵티마이저 실행 계획 검증:** WHERE 절 컬럼 가공/형변환으로 인한 Full Table Scan 사례 분석 및 `EXPLAIN ANALYZE` 기반 SARGable 쿼리 리팩토링
 - [ ] **JPA N+1 문제 탐색 및 쿼리 수 최소화:** 지연 로딩(Lazy Loading)으로 인한 RDB RTT(Round Trip Time) 폭증 관측 및 `Fetch Join` / `default_batch_fetch_size` 적용 전후 성능 비교
