@@ -23,7 +23,7 @@ DROP INDEX idx_writer ON document;
 #	1. 인덱스 생성
 
 -- 카디널리티 낮음 -> 높음 순서 복합 인덱스
-CREATE INDEX idx_cat_writer ON document(category, writer_id);
+CREATE INDEX idx_cat_status ON document(category, status);
 
 -- 커버링 인덱스
 CREATE INDEX idx_covering ON document(category, status, writer_id, created_at);
@@ -32,7 +32,7 @@ CREATE INDEX idx_covering ON document(category, status, writer_id, created_at);
 -- 복합 인덱스
 EXPLAIN ANALYZE
 SELECT writer_id, created_at
-FROM document USE INDEX(idx_cat_writer)
+FROM document USE INDEX(idx_cat_status)
 WHERE category = 'FREE' AND status = 'PUBLISHED';
 
 -- 커버링 인덱스 
