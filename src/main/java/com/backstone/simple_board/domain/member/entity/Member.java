@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,8 @@ public class Member {
 
     private String name;
 
+    // Batch size 100으로 고정
+    @BatchSize(size = 100)
     @OneToMany(mappedBy = "member", fetch = FetchType.LAZY)
     private List<Document> documents = new ArrayList<>();
 
