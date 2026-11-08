@@ -1,9 +1,7 @@
 package com.backstone.simple_board.domain.document.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import com.backstone.simple_board.domain.member.entity.Member;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,6 +18,11 @@ public class Document {
 
     private String content;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id")
+    private Member member;
+
+    // PoC #19(2026.11.8): member는 생략한다.
     public static Document create(String title, String content) {
         Document document = new Document();
         document.title = title;
