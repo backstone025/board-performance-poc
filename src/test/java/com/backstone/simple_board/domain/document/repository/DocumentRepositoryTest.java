@@ -52,4 +52,31 @@ class DocumentRepositoryTest {
         System.out.println("==================================================");
     }
 
+    @Test
+    @Transactional
+    @DisplayName("[Test B] JPQL Fetch Join - N+1 문제 해결")
+    void testB_fetchJoin(){
+        // 1. 영속성 컨텍스트 초기화 (1차 캐시 비우기)
+        entityManager.flush();
+        entityManager.clear();
+
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        // 2. Fetch Join 쿼리 실행 (쿼리 1회 발생)
+        List<Member> members = memberRepository.findAllWithDocuments();
+
+        // 3. 연관된 documents 컬렉션 접근
+        int totalDocumentCount = 0;
+        for (Member member : members) {
+            totalDocumentCount += member.getDocuments().size();
+        }
+
+        System.out.println("==================================================");
+        System.out.println("조회된 Member 수: " + members.size());
+        System.out.println("총 Document 수: " + totalDocumentCount);
+        System.out.println("Test B 실행 시간: " + stopWatch.getTotalTimeMillis() + " ms");
+        System.out.println("==================================================");
+    }
+
 }
