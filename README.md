@@ -22,13 +22,19 @@
 - [X] **인덱스 이탈(Index Invalidation) & 옵티마이저 실행 계획 검증:** WHERE 절 컬럼 가공/형변환으로 인한 Full Table Scan 사례 분석 및 `EXPLAIN ANALYZE` 기반 SARGable 쿼리 리팩토링
 - [X] **JPA N+1 문제 탐색 및 쿼리 수 최소화:** 지연 로딩(Lazy Loading)으로 인한 RDB RTT(Round Trip Time) 폭증 관측 및 `Fetch Join` / `default_batch_fetch_size` 적용 전후 성능 비교
 
+### 3. 비동기 아키텍처 및 데이터 정합성 보장 Sprint (`2026.11.12 ~ 2026.12.16`)
+- [ ] **애플리케이션 레벨 비동기 처리 (`@Async` & Event Listener):** 트랜잭션 커밋 시점(`AFTER_COMMIT`) 분리 및 별도 스레드 풀 실행을 통한 API 응답 Latency 단축과 JVM 강제 종료 시 메모리 큐 유실 한계 검증
+- [ ] **메시징 시스템 도입 및 장애 격리 (Redis Streams / RabbitMQ):** 외부 메시지 브로커 기반 비동기 이벤트 전파를 통한 컨슈머 장애 복원력 확보 및 DB-브로커 간 이중 쓰기(Dual Write) 데이터 불일치 문제 재현
+- [ ] **트랜잭션 아웃박스 패턴 (Transactional Outbox & Polling Batch):** 로컬 DB 트랜잭션 내 이벤트 저장 원자성(Atomicity) 확보 및 주기적 Polling 연동을 통한 메시지 유실 0% 최종 일관성(Eventual Consistency) 검증
+- [ ] **CDC(Change Data Capture) 기반 실시간 이벤트 스트리밍:** Polling 방식의 DB 조회 부하 및 발행 지연 한계를 극복하기 위한 MySQL Binlog(Debezium) 기반 실시간 비동기 파이프라인 구축 및 트레이드오프 분석
+
 ---
 
 ## Tech Stack & Tools
 
 - **Application:** Java 21, Spring Boot 3.x, Spring Data JPA, Micrometer (Actuator)
 - **Database Layer:** MySQL 8.0, HikariCP
-- **Cache Layer:** Redis 7.0 (Remote Cache), Caffeine Cache (Local Cache)
+- **Cache & Messaging Layer:** Redis 7.0 (Remote Cache / Streams), Caffeine Cache (Local Cache)
 - **Web Server / Load Balancer:** Nginx
 - **Load Test:** k6 (CLI, Zipfian/Pareto Workload Generator)
 - **Monitoring & Observability:** Prometheus, Grafana, Redis Exporter (9121)
