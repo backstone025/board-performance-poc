@@ -37,4 +37,27 @@ class AsyncEnvironmentTest {
         // 검증: 외부 지연 시간(500ms) 이상 블로킹되어야 한다.
         assertThat(elapsedTime).isGreaterThanOrEqualTo(500L);
     }
+
+    @Test
+    @DisplayName("[Test A - 비교군] 비동기 실행")
+    void verifyAsyncExecution() throws InterruptedException {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        String callerThread = Thread.currentThread().getName();
+        log.info("[호출부 메인] Thread: {}", callerThread);
+
+        // 비동기 메서드 호출
+        notificationService.sendAsync(1L, false);
+
+        stopWatch.stop();
+        long elapsedTime = stopWatch.getTotalTimeMillis();
+        log.info("[호출부 반환 시간 (비동기)] {} ms", elapsedTime);
+
+        // 검증: 외부 지연 시간(500ms) 이상 블로킹되어야 한다.
+        assertThat(elapsedTime).isLessThan(100L);
+
+        // 워커 스레드(async-notification-1) 작업 완료 확인을 위한 대기
+        Thread.sleep(700);
+    }
 }
