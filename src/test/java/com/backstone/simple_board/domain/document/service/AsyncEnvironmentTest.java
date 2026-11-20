@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.StopWatch;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -86,7 +87,7 @@ class AsyncEnvironmentTest {
 
         try {
             notificationService.sendAsync(2L, true);
-        }catch (Exception ex){
+        } catch (Exception ex) {
             caughtInCaller.set(true);
             log.info("[호출부 Catch] 예외 포착 성공: {}", ex.getMessage());
         }
@@ -103,5 +104,41 @@ class AsyncEnvironmentTest {
         assertThat(caughtInGlobalHandler.get())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("외부 알림 서버 통신 장애 발생");
+    }
+
+    @Test
+    @DisplayName("[Test C] 솔루션 1: 비동기 메소드 내부에 Try-Catch 처리")
+    void verifyInternalTryCatchHandling() throws InterruptedException {
+        AtomicBoolean globalHandlerTriggered = new AtomicBoolean(false);
+        asyncConfig.setTestExceptionCallback(exception -> {
+            globalHandlerTriggered.set(true);
+        });
+
+        notificationService.sendAsyncWithInternalTryCatch(3L, true);
+
+        // 워커 스레드 작업 완료 대기
+        Thread.sleep(700);
+
+        // 검증: 내부 try-catch에서 직접 처리했으므로 전역 핸들러 예외가 새지 않음
+        assertThat(globalHandlerTriggered.get()).isFalse();
+    }
+
+    @Test
+    @DisplayName("[Test C] 솔루션 2: CompletableFuture 기반 반환 및 예외 제어")
+    void verifyCompletableFutureExceptionHandling() throws Exception {
+        log.info("[호출부 메인] CompletableFuture 호출 - Thread: {}", Thread.currentThread().getName());
+
+        // 비동기 호출 후 .exceptionally()로 실패 시 대체 결과 반환(fallback)
+        CompletableFuture<String> future = notificationService.sendAsyncWithFuture(4L, true)
+                .exceptionally(exception -> {
+                    log.warn("[Future Fallback] 비동기 예외 복구 처리: Thread: {}, logs: {}",
+                            Thread.currentThread().getName(), exception.getMessage());
+                    return "FALLBACK_NOTIFICATION_SAVED:4";
+                });
+
+        // 메인 스레드는 즉시 반환됨을 확인한 뒤, 최종 복구 결과 검증
+        String result = future.get(2L, TimeUnit.SECONDS);
+
+        assertThat(result).isEqualTo("FALLBACK_NOTIFICATION_SAVED:4");
     }
 }
