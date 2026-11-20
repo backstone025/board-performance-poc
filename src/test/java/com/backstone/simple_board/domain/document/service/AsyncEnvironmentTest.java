@@ -1,5 +1,6 @@
 package com.backstone.simple_board.domain.document.service;
 
+import com.backstone.simple_board.global.config.AsyncConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.StopWatch;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,6 +23,9 @@ class AsyncEnvironmentTest {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private AsyncConfig asyncConfig;
 
     @Test
     @DisplayName("[Test A - 대조군] 동기 실행")
@@ -59,5 +68,40 @@ class AsyncEnvironmentTest {
 
         // 워커 스레드(async-notification-1) 작업 완료 확인을 위한 대기
         Thread.sleep(700);
+    }
+
+    @Test
+    @DisplayName("[Test B] 비동기 작업 내 예외 발생 시 호출부 try-catch 무효해지는 현상 확인")
+    void verifyTryCatchIneffectiveInAsyncExecution() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean caughtInCaller = new AtomicBoolean(false);
+        AtomicReference<Throwable> caughtInGlobalHandler = new AtomicReference<>();
+
+        asyncConfig.setTestExceptionCallback(exception -> {
+            caughtInGlobalHandler.set(exception);
+            latch.countDown();
+        });
+
+        log.info("[호출부 메인] try-catch 블록 진입: Thread: {}", Thread.currentThread().getName());
+
+        try {
+            notificationService.sendAsync(2L, true);
+        }catch (Exception ex){
+            caughtInCaller.set(true);
+            log.info("[호출부 Catch] 예외 포착 성공: {}", ex.getMessage());
+        }
+
+        log.info("[호출부 메인] try-catch 블록 통과 완료 (예외 미포착 상태)");
+
+        boolean completed = latch.await(2, TimeUnit.SECONDS);
+
+        // 검증 1: 호출부의 try-catch는 비동기 예외를 잡지 못함
+        assertThat(caughtInCaller.get()).isFalse();
+
+        // 검증 2: 예외는 스레드 풀 바깥의 전역 핸들러로 전달됨
+        assertThat(completed).isTrue();
+        assertThat(caughtInGlobalHandler.get())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("외부 알림 서버 통신 장애 발생");
     }
 }
