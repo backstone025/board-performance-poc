@@ -20,7 +20,7 @@ public class AsyncConfig implements AsyncConfigurer {
     // 전역 예외 핸들러 동작 감지를 위한 콜백
     private Consumer<Throwable> testExceptionCallback;
 
-    public void  setTestExceptionCallback(Consumer<Throwable> callback) {
+    public void setTestExceptionCallback(Consumer<Throwable> callback) {
         this.testExceptionCallback = callback;
     }
 
@@ -42,7 +42,7 @@ public class AsyncConfig implements AsyncConfigurer {
         return (throwable, method, params) -> {
             log.error("[전역 비동기 예외 핸들러] method: {}, params: {}, exception: {}",
                     method.getName(), Arrays.toString(params), throwable.getMessage());
-            if(testExceptionCallback != null) {
+            if (testExceptionCallback != null) {
                 testExceptionCallback.accept(throwable);
             }
         };

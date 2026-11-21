@@ -23,7 +23,7 @@ public class DocumentDualWriteExperimentService {
      * - 단일 트랜잭션 내에서 DB 저장 -> 브로커 발행 수, 커밋 직전 런타임 예외로 DB만 롤백
      */
     @Transactional
-    public void createWithPhantomEvent(String title, String content){
+    public void createWithPhantomEvent(String title, String content) {
         Document saved = documentRepository.save(Document.create(title, content));
         log.info("[Case B-1] DB 임시 저장 완료(커밋 안된 상태) DocumentId: {}", saved.getId());
 
@@ -43,14 +43,14 @@ public class DocumentDualWriteExperimentService {
      * </ol>
      */
     @Transactional
-    public Long createWithLostEvent(String title, String content){
+    public Long createWithLostEvent(String title, String content) {
         Document saved = documentRepository.save(Document.create(title, content));
         log.info("[Case B-2] DB 저장 완료 - DocumentId: {}", saved.getId());
 
-        try{
+        try {
             // 브로커 발행 시도 중 네트워크 타임 이웃 장애 발생
             simulateBrokerTimeout();
-        }catch (Exception e){
+        } catch (Exception e) {
             // 알림 기능 장애로 핵심 로직(게시글 등록)까지 실패시키지 않도록, 예외를 로깅만 하고 넘긴다.
             log.error("[Case B-2] Redis 브로커 장애로 이벤트 발행 실패 (게시글 정상 커밋) - DocumentId: {}, 사유: {}",
                     saved.getId(), e.getMessage());
@@ -59,7 +59,7 @@ public class DocumentDualWriteExperimentService {
         return saved.getId();
     }
 
-    private void simulateBrokerTimeout(){
+    private void simulateBrokerTimeout() {
         throw new IllegalStateException("RedisConnectionFailureException: 브로커 네트워크 타임아웃");
     }
 }

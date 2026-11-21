@@ -9,7 +9,6 @@ import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
@@ -58,7 +57,7 @@ public class RedisStreamConfig {
                 notificationStreamConsumer                                      // 수동 ACK(컨슈머가 명시적으로 XACK를 호출해야 PEL에서 제거)
         );
 
-        return  container;
+        return container;
     }
 
     private void initStreamAndConsumerGroup() {
