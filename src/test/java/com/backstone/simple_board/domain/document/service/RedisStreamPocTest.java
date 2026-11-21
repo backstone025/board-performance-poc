@@ -34,10 +34,13 @@ class RedisStreamPocTest {
     private DocumentDualWriteExperimentService experimentService;
     @Autowired
     private DocumentRepository repository;
+    @Autowired
+    private DocumentAfterCommitListener afterCommitListener;
 
     @BeforeEach
     void setUp() {
         streamConsumer.resetTestState();
+        afterCommitListener.resetTestState();
 
         // 1. 기존 PEL(XPENDING)에 남아있는 미처리 메시지가 있다면 모두 XACK 처리해 비움
         PendingMessages pending = redisTemplate.opsForStream()
@@ -50,6 +53,9 @@ class RedisStreamPocTest {
 
         // 2. 스트림 내 엔트리 비우기 (컨슈머 그룹과 구독 상태는 그대로 유지)
         redisTemplate.opsForStream().trim(RedisStreamConfig.STREAM_KEY, 0);
+
+        // 3. 이전 테스트에서 커밋된 DB 레코드 초기화
+        repository.deleteAll();
     }
 
     @Test
@@ -131,6 +137,53 @@ class RedisStreamPocTest {
         int notifiedCount = streamConsumer.getProcessedCounter().get();
 
         log.warn("[Test B-2 불일치 확인] 저장된 DocumentId: {}, DB 게시글 수: {}, Redis 스트림 적재 수: {}, 컨슈머 알림 발송 수: {}",
+                savedDocumentId, dbCount, streamSize, notifiedCount);
+
+        assertThat(dbCount).isEqualTo(1L);
+        assertThat(streamSize).isEqualTo(0L);
+        assertThat(notifiedCount).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("[Test C-1] AFTER_COMMIT 적용 시 DB 롤백에 따른 유령 이벤트(Case B-1) 100% 차단 검증")
+    void verifyAfterCommitPreventsPhantomEventOnDbRollback() throws InterruptedException {
+        // DB 저장 후 스프링 내부 이벤트 발생 -> 직후 예외로 DB 롤백
+        assertThatThrownBy(() ->
+                experimentService.createWithAfterCommitAndRollback("롤백될 게시글", "글 내용"))
+                .isInstanceOf(IllegalStateException.class);
+
+        Thread.sleep(300);  // 백그라운드 컨슈머 폴링 및 처리 대기
+
+        // 검증: 트랜잭션이 커밋되지 않아 AFTER_COMMIT 리스너가 실행되지 않았으므로 유령 이벤트 0건
+        long dbCount = repository.count();
+        Long streamSize = redisTemplate.opsForStream().size(RedisStreamConfig.STREAM_KEY);
+        int notifiedCount = streamConsumer.getProcessedCounter().get();
+
+        log.info("[Test C-1 검증 완료] 유령 이벤트 차단 성공 - DB 게시글 수: {}, Redis 스트림 적재 수: {}, 알림 발송 수: {}",
+                dbCount, streamSize, notifiedCount);
+
+        assertThat(dbCount).isEqualTo(0L);
+        assertThat(streamSize).isEqualTo(0L);
+        assertThat(notifiedCount).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("[Test C-2] AFTER_COMMIT 이후 브로커 장애 시 DB 커밋은 유지되나 이벤트 유실 한계(Case B-2) 잔존 확인")
+    void verifyAfterCommitStillLosesEventOnBrokerFailure() throws InterruptedException {
+        // DB 커밋 직후 실행되는 AFTER_COMMIT 리스너에서 브로커 장애가 발생하도록 설정
+        afterCommitListener.getSimulateBrokerFailure().set(true);
+
+        // DB 트랜잭션은 정상 커밋되지만, 커밋 이후 AFTER_COMMIT 리스너에서 브로커 예외 발생
+        Long savedDocumentId = experimentService.createWithAfterCommitAndBrokerFailure("커밋 후 알림 유실 게시글", "내용입니다");
+
+        Thread.sleep(300);
+
+        // 검증: DB에는 이미 커밋(1건)되어 롤백 불가하지만, 브로커 적재 및 알림 발송은 0건으로 영구 유실됨!
+        long dbCount = repository.count();
+        Long streamSize = redisTemplate.opsForStream().size(RedisStreamConfig.STREAM_KEY);
+        int notifiedCount = streamConsumer.getProcessedCounter().get();
+
+        log.warn("[Test C-2 한계 포착] 저장된 DocumentId: {}, DB 게시글 수: {}, Redis 스트림 적재 수: {}, 알림 발송 수: {}",
                 savedDocumentId, dbCount, streamSize, notifiedCount);
 
         assertThat(dbCount).isEqualTo(1L);
