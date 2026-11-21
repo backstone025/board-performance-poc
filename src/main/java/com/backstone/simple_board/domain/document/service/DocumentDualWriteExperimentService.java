@@ -5,6 +5,7 @@ import com.backstone.simple_board.domain.document.event.DocumentCreatedEvent;
 import com.backstone.simple_board.domain.document.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 public class DocumentDualWriteExperimentService {
     private final DocumentRepository documentRepository;
     private final DocumentStreamProducer streamProducer;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * [Case B-1] 유령 이벤트 발생(Phantom Event)
@@ -61,5 +63,36 @@ public class DocumentDualWriteExperimentService {
 
     private void simulateBrokerTimeout() {
         throw new IllegalStateException("RedisConnectionFailureException: 브로커 네트워크 타임아웃");
+    }
+
+    /**
+     * [Case C-1] AFTER_COMMIT 적용 후 트랜잭션 롤백 (Case B-1 유령 이벤트 차단 검증)
+     */
+    @Transactional
+    public void createWithAfterCommitAndRollback(String title, String content) {
+        Document saved = documentRepository.save(Document.create(title, content));
+
+        log.info("[Case B-1] DB 임시 저장 완료(커밋 안된 상태) DocumentId: {}", saved.getId());
+
+        // 외부 Redis Streams로 직접 알림 보내지 않고 스프링 내부 이벤트만 등록
+        DocumentCreatedEvent event = DocumentCreatedEvent.of(saved.getId(), saved.getTitle(), LocalDateTime.now().toString());
+        eventPublisher.publishEvent(event);
+
+        // 트랜잭션 롤백 유도
+        throw new IllegalStateException("[Case C-1] DB 커밋 직전 비즈니스 예외 발생 (트랜잭션 롤백 유도)");
+    }
+
+    /**
+     * [Case C-2] AFTER_COMMIT 적용 후 정상 커밋되었으나 리스너에서 브로커 장애 발생(Case B-2 한계 잔존)
+     */
+    @Transactional
+    public Long createWithAfterCommitAndBrokerFailure(String title, String content) {
+        Document saved = documentRepository.save(Document.create(title, content));
+        log.info("[Case C-2] DB 저장 완료 - DocumentId: {}", saved.getId());
+
+        DocumentCreatedEvent event = DocumentCreatedEvent.of(saved.getId(), saved.getTitle(), LocalDateTime.now().toString());
+        eventPublisher.publishEvent(event);
+
+        return saved.getId();
     }
 }
