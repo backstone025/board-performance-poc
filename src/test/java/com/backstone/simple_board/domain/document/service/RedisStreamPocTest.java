@@ -1,6 +1,7 @@
 package com.backstone.simple_board.domain.document.service;
 
 import com.backstone.simple_board.domain.document.event.DocumentCreatedEvent;
+import com.backstone.simple_board.domain.document.repository.DocumentRepository;
 import com.backstone.simple_board.global.config.RedisStreamConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Slf4j
 @SpringBootTest
@@ -28,6 +30,10 @@ class RedisStreamPocTest {
     private DocumentStreamProducer streamProducer;
     @Autowired
     private NotificationStreamConsumer streamConsumer;
+    @Autowired
+    private DocumentDualWriteExperimentService experimentService;
+    @Autowired
+    private DocumentRepository repository;
 
     @BeforeEach
     void setUp() {
@@ -87,5 +93,48 @@ class RedisStreamPocTest {
         streamConsumer.onMessage(recoveredRecord);
         assertThat(streamConsumer.getProcessedCounter().get()).isEqualTo(1);    // 중복 무시
         log.info("[Test A 검증 3] 중복 수신 후 최종 처리 건수(멱등성 보장): {}", streamConsumer.getProcessedCounter().get());
+    }
+
+    @Test
+    @DisplayName("[Test B-1] 단일 트랜잭션 이중 쓰기 시 DB 롤백에도 유령 이벤트가 발행되는 불일치 재현")
+    void reproducePhantomEventOnDbRollback() throws InterruptedException {
+        // DB 저장 -> Redis 발행 후 예외로 DB 롤백 유도
+        assertThatThrownBy(() -> experimentService.createWithPhantomEvent("롤백될 유령 게시글", "글 내용"))
+                .isInstanceOf(IllegalStateException.class);
+
+        Thread.sleep(300);  // 백그라운드 컨슈머 폴링 및 처리 대기
+
+        // 검증: DB에는 게시글이 롤백되어 0건이나, Redis에는 발행되어 컨슈머가 알림을 발송함
+        long dbCount = repository.count();
+        Long streamSize = redisTemplate.opsForStream().size(RedisStreamConfig.STREAM_KEY);
+        int notifiedCount = streamConsumer.getProcessedCounter().get();
+
+        log.warn("[Test B-1 불일치 확인] DB 게시글 수: {}, Redis 스트림 적재 수: {}, 컨슈머 알림 발송 수: {}",
+                dbCount, streamSize, notifiedCount);
+
+        assertThat(dbCount).isEqualTo(0L);
+        assertThat(streamSize).isEqualTo(1L);
+        assertThat(notifiedCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("[Test B-2] DB 커밋 성공 후 브로커 발행 장애 시 이벤트가 영구 누락되는 불일치 재현")
+    void reproduceLostEventOnBrokerFailure() throws InterruptedException {
+        // DB 저장은 성공했으나 브로커 타임아웃으로 이벤트 발행 실패
+        Long savedDocumentId = experimentService.createWithLostEvent("정상 등록된 게시글", "글 내용");
+
+        Thread.sleep(300);  // 백그라운드 컨슈머 폴링 및 처리 대기
+
+        // 검증: DB에는 게시글이 정상 커밋(1건)되었으나, 브로커 및 컨슈머에는 이벤트가 0건으로 영구 유실됨
+        long dbCount = repository.count();
+        Long streamSize = redisTemplate.opsForStream().size(RedisStreamConfig.STREAM_KEY);
+        int notifiedCount = streamConsumer.getProcessedCounter().get();
+
+        log.warn("[Test B-2 불일치 확인] 저장된 DocumentId: {}, DB 게시글 수: {}, Redis 스트림 적재 수: {}, 컨슈머 알림 발송 수: {}",
+                savedDocumentId, dbCount, streamSize, notifiedCount);
+
+        assertThat(dbCount).isEqualTo(1L);
+        assertThat(streamSize).isEqualTo(0L);
+        assertThat(notifiedCount).isEqualTo(0);
     }
 }
